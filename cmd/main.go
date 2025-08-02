@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 
@@ -11,10 +12,13 @@ import (
 
 	dotenv "github.com/joho/godotenv"
 	envconf "github.com/sethvargo/go-envconfig"
+
+	"github.com/luckyComet55/marzban-tg-bot/internal/middleware"
 )
 
 type AppConfig struct {
-	BotApiKey string `env:"BOT_TOKEN, required"`
+	BotApiKey       string  `env:"BOT_TOKEN, required"`
+	AuthorizedUsers []int64 `env:"AUTHORIZED_USER_IDS, required"`
 }
 
 func main() {
@@ -29,8 +33,13 @@ func main() {
 
 	envconf.MustProcess(ctx, &c)
 
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
+	everithingHandler := middleware.WithWhitelist(whitelistMidleware, handler)
+
 	opts := []bot.Option{
-		bot.WithDefaultHandler(handler),
+		bot.WithDefaultHandler(everithingHandler),
+		bot.WithDebug(),
 	}
 
 	b, err := bot.New(c.BotApiKey, opts...)
