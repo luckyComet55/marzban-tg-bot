@@ -8,12 +8,13 @@ import (
 	"os/signal"
 
 	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
 
 	dotenv "github.com/joho/godotenv"
 	envconf "github.com/sethvargo/go-envconfig"
 
+	"github.com/luckyComet55/marzban-tg-bot/internal/handler"
 	"github.com/luckyComet55/marzban-tg-bot/internal/middleware"
+	"github.com/luckyComet55/marzban-tg-bot/internal/repository"
 )
 
 type AppConfig struct {
@@ -35,7 +36,10 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
-	everithingHandler := middleware.WithWhitelist(whitelistMidleware, handler)
+	adminRepo := repository.NewAdminRepository()
+
+	handlerWrapper := handler.NewMessageHandler(adminRepo, logger)
+	everithingHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleUpdate)
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(everithingHandler),
@@ -48,11 +52,4 @@ func main() {
 	}
 
 	b.Start(ctx)
-}
-
-func handler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   update.Message.Text,
-	})
 }
