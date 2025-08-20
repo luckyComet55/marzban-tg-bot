@@ -1,19 +1,19 @@
 BINARY_NAME=marzban-tg-bot
 BUILD_DIR=build
 
-.PHONY: me-cum edging gooon help
+.PHONY: build setup clean help
 
-me-cum:
+build:
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) cmd/main.go
 
-edging:
+setup:
 	go mod download
 
-gooon:
+clean:
 	rm -rf $(BUILD_DIR)
 
 help:
 	@echo "Available commands:"
-	@echo "    me-cum       - makes source cum"
-	@echo "    edging       - creates environment required for cum"
-	@echo "    gooon        - cleans up"
+	@echo "    build        - builds source"
+	@echo "    setup        - creates environment"
+	@echo "    clean        - cleans up"
