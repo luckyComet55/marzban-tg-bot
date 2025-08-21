@@ -12,10 +12,13 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/go-telegram/ui/keyboard/inline"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	dotenv "github.com/joho/godotenv"
 	envconf "github.com/sethvargo/go-envconfig"
 
+	pcl "github.com/luckyComet55/marzban-proto-contract/gen/go/contract"
 	"github.com/luckyComet55/marzban-tg-bot/internal/fsm"
 	"github.com/luckyComet55/marzban-tg-bot/internal/handler"
 	"github.com/luckyComet55/marzban-tg-bot/internal/middleware"
@@ -26,6 +29,7 @@ import (
 type AppConfig struct {
 	BotApiKey       string  `env:"BOT_TOKEN, required"`
 	AuthorizedUsers []int64 `env:"AUTHORIZED_USER_IDS, required"`
+	ServerURL       string  `env:"SERVER_URL, required"`
 }
 
 func main() {
@@ -43,7 +47,14 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
 
-	userRepo := repo.NewUserRepository(logger)
+	conn, err := grpc.NewClient(c.ServerURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+	grpcClient := pcl.NewMarzbanManagementPanelClient(conn)
+
+	userRepo := repo.NewUserRepository(grpcClient, logger)
 	proxyRepo := repo.NewProxyRepository(logger)
 	adminStateMashine := fsm.NewFSM(repository.ADMIN_STATE_DEFAULT).
 		Transition(repo.ADMIN_STATE_DEFAULT, "lu", repo.ADMIN_STATE_DEFAULT).
@@ -192,6 +203,41 @@ func main() {
 			ReplyMarkup: km,
 		})
 
+		return nil
+	})
+
+	adminStateMashine.OnTransition(func(from, to fsm.State, event fsm.Event, ctx *fsm.FSMContext) error {
+		if event != "s" {
+			return nil
+		}
+
+		b := ctx.Meta["tgbot"].(*bot.Bot)
+		u := ctx.Meta["tgchat"].(int64)
+		c := ctx.Meta["tgctx"].(context.Context)
+
+		username := ctx.Data["username"].(string)
+		proxy := ctx.Data["proxy"].(string)
+
+		userCreateData := repo.UserCreateData{
+			Username:      username,
+			ProxyProtocol: proxy,
+		}
+
+		userData, err := userRepo.CreateUser(userCreateData)
+		if err != nil {
+			b.SendMessage(c, &bot.SendMessageParams{
+				ChatID: u,
+				Text:   "Could not add user, try again later",
+			})
+			return err
+		}
+
+		userFormat := "Created user:\nusername: %s\nproxy config: %s\nconfig url: `%s`"
+		b.SendMessage(c, &bot.SendMessageParams{
+			ChatID:    u,
+			Text:      fmt.Sprintf(userFormat, userData.Username, userData.ProxyProtocol, userData.ConfigUrl),
+			ParseMode: models.ParseModeMarkdownV1,
+		})
 		return nil
 	})
 

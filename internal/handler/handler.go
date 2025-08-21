@@ -234,19 +234,17 @@ func (mh *MessageHandler) ListUsers(ctx context.Context, b *bot.Bot, update *mod
 		return
 	}
 
-	messageTemplate := `
-- username: %s
-  used traffic: %d GiB
-  config name: %s\n`
+	messageTemplate := "\n- username: %s\n  used traffic: %d GiB\n  config url: `%s`"
 	userListMessage := fmt.Sprintf("Total of %d users:", len(users))
 
 	for _, user := range users {
-		userListMessage += fmt.Sprintf(messageTemplate, user.Username, user.UsedTraffic, user.ProxyProtocol)
+		userListMessage += fmt.Sprintf(messageTemplate, user.Username, user.UsedTraffic, user.ConfigUrl)
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
-		Text:   userListMessage,
-		ChatID: update.Message.Chat.ID,
+		Text:      userListMessage,
+		ChatID:    update.Message.Chat.ID,
+		ParseMode: models.ParseModeMarkdownV1,
 	})
 }
 
