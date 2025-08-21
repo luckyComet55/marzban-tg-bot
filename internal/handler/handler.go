@@ -102,7 +102,16 @@ func (mh *MessageHandler) HandleCancel(ctx context.Context, b *bot.Bot, update *
 	adminID := update.Message.From.ID
 	chatID := update.Message.Chat.ID
 
-	if _, ok := mh.adminRepository.GetAdminState(adminID); !ok {
+	exists, err := mh.adminRepository.CheckAdminExists(adminID)
+	if err != nil {
+		mh.logger.Error(err.Error())
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			Text:   "Unable to serve you right now, try again later",
+			ChatID: chatID,
+		})
+		return
+	}
+	if !exists {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "To start using bot enter /start",
 			ChatID: chatID,
@@ -137,16 +146,22 @@ func (mh *MessageHandler) HandleUpdate(ctx context.Context, b *bot.Bot, update *
 		return
 	}
 
-	adminState, ok := mh.adminRepository.GetAdminState(adminID)
-	if !ok {
+	exists, err := mh.adminRepository.CheckAdminExists(adminID)
+	if err != nil {
+		mh.logger.Error(err.Error())
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			Text:   "Unable to serve you right now, try again later",
+			ChatID: chatID,
+		})
+		return
+	}
+	if !exists {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "To start using bot enter /start",
 			ChatID: chatID,
 		})
 		return
 	}
-
-	mh.logger.Debug(fmt.Sprintf("handling user %d with state %s", adminID, adminState))
 
 	var adminInput, transitionName string
 	transitionName = "next"

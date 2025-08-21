@@ -17,7 +17,7 @@ const (
 )
 
 type AdminRepository interface {
-	GetAdminState(int64) (fsm.State, bool)
+	GetAdminState(int64) (fsm.State, error)
 	CheckAdminExists(int64) (bool, error)
 	AddAdmin(int64) error
 	RemoveAdmin(int64) error
@@ -39,12 +39,12 @@ func (ar *adminRepository) RemoveAdmin(adminID int64) error {
 	return nil
 }
 
-func (ar *adminRepository) GetAdminState(adminID int64) (fsm.State, bool) {
+func (ar *adminRepository) GetAdminState(adminID int64) (fsm.State, error) {
 	fsm, ok := ar.adminStates[adminID]
 	if !ok {
-		return "", ok
+		return "", fmt.Errorf("admin with ID %d does not exist", adminID)
 	}
-	return fsm.GetCurrent(), ok
+	return fsm.GetCurrent(), nil
 }
 
 func (ar *adminRepository) AddAdmin(adminID int64) error {
