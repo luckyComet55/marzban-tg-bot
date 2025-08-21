@@ -125,7 +125,7 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 
 	if onExitCallbackList, ok := fsm.onExit[prevState]; ok {
 		for _, cb := range onExitCallbackList {
-			if err := cb(fsm.ctx); err != nil {
+			if err := fsm.executeCallback(cb); err != nil {
 				return err
 			}
 		}
@@ -134,6 +134,22 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 	fsm.ctx.State = nextState
 
 	for _, trCb := range fsm.onTransition {
+		if err := func() (err error) {
+			defer func() {
+				if pReason := recover(); pReason != nil {
+					fmt.Printf("Recovered from: %v", pReason)
+					err = fmt.Errorf("paniced on transition callback: %v", pReason)
+				}
+			}()
+			if trCbErr := trCb(prevState, nextState, event, fsm.ctx); trCbErr != nil {
+				err = trCbErr
+			}
+
+			return err
+		}(); err != nil {
+			return err
+		}
+
 		if err := trCb(prevState, nextState, event, fsm.ctx); err != nil {
 			return err
 		}
@@ -141,7 +157,7 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 
 	if onEnterCallbackList, ok := fsm.onEnter[nextState]; ok {
 		for _, cb := range onEnterCallbackList {
-			if err := cb(fsm.ctx); err != nil {
+			if err := fsm.executeCallback(cb); err != nil {
 				return err
 			}
 		}
@@ -157,11 +173,26 @@ func (fsm *FSM) CallEnter(state State) error {
 
 	if onEnterCallbackList, ok := fsm.onEnter[state]; ok {
 		for _, cb := range onEnterCallbackList {
-			if err := cb(fsm.ctx); err != nil {
+			if err := fsm.executeCallback(cb); err != nil {
 				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+func (fsm *FSM) executeCallback(cb Callback) (err error) {
+	defer func() {
+		if pReason := recover(); pReason != nil {
+			fmt.Printf("Recovered from: %v", pReason)
+			err = fmt.Errorf("paniced on callback: %v", pReason)
+		}
+	}()
+
+	if cbErr := cb(fsm.ctx); cbErr != nil {
+		err = cbErr
+	}
+
+	return err
 }
