@@ -92,9 +92,7 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 	defer fsm.mu.Unlock()
 
 	if len(input) > 0 {
-		fmt.Printf("input is %v", input)
 		fsm.ctx.Input = input[0]
-		fmt.Printf("now input is %v", fsm.ctx.Input)
 	} else {
 		fsm.ctx.Input = nil
 	}
@@ -107,7 +105,6 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 	mustTransit := make([]transition, 0)
 
 	for _, transition := range transitions {
-		fmt.Printf("transition to %s, event %s, triggered event %s\n", transition.to, transition.event, event)
 		if transition.event == event && (transition.guard == nil || transition.guard(fsm.ctx)) {
 			mustTransit = append(mustTransit, transition)
 		}
@@ -147,10 +144,6 @@ func (fsm *FSM) Trigger(event Event, input ...any) error {
 
 			return err
 		}(); err != nil {
-			return err
-		}
-
-		if err := trCb(prevState, nextState, event, fsm.ctx); err != nil {
 			return err
 		}
 	}
