@@ -49,7 +49,7 @@ func (repo *userRepository) GetUsers() ([]UserData, error) {
 			return nil, err
 		}
 		users = append(users, UserData{
-			UserCreateData: UserCreateData{user.Username, user.Status},
+			UserCreateData: UserCreateData{user.Username, user.ProxyProtocol[0].ProxyName},
 			UsedTraffic:    int64(user.UsedTraffic),
 			ConfigUrl:      user.ConfigUrls[0],
 		})

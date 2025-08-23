@@ -6,7 +6,7 @@ require (
 	github.com/go-telegram/bot v1.16.0
 	github.com/go-telegram/ui v0.5.1
 	github.com/joho/godotenv v1.5.1
-	github.com/luckyComet55/marzban-proto-contract v0.2.1
+	github.com/luckyComet55/marzban-proto-contract v0.2.2
 	github.com/sethvargo/go-envconfig v1.3.0
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
