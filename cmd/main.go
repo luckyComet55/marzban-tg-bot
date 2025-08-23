@@ -19,17 +19,19 @@ import (
 	envconf "github.com/sethvargo/go-envconfig"
 
 	pcl "github.com/luckyComet55/marzban-proto-contract/gen/go/contract"
-	"github.com/luckyComet55/marzban-tg-bot/internal/fsm"
+
 	"github.com/luckyComet55/marzban-tg-bot/internal/handler"
 	"github.com/luckyComet55/marzban-tg-bot/internal/middleware"
 	"github.com/luckyComet55/marzban-tg-bot/internal/repository"
 	repo "github.com/luckyComet55/marzban-tg-bot/internal/repository"
+	"github.com/luckyComet55/marzban-tg-bot/pkg/fsm"
 )
 
 type AppConfig struct {
 	BotApiKey       string  `env:"BOT_TOKEN, required"`
 	AuthorizedUsers []int64 `env:"AUTHORIZED_USER_IDS, required"`
 	ServerURL       string  `env:"SERVER_URL, required"`
+	Env             string  `env:"ENV, required"`
 }
 
 func main() {
@@ -44,9 +46,7 @@ func main() {
 
 	envconf.MustProcess(ctx, &c)
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
-
+	logger := configureLogger(c)
 	conn, err := grpc.NewClient(c.ServerURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
@@ -54,19 +54,21 @@ func main() {
 	defer conn.Close()
 	grpcClient := pcl.NewMarzbanManagementPanelClient(conn)
 
-	userRepo := repo.NewUserRepository(grpcClient, logger)
-	proxyRepo := repo.NewProxyRepository(logger)
 	adminStateMashine := fsm.NewFSM(repository.ADMIN_STATE_DEFAULT).
 		Transition(repo.ADMIN_STATE_DEFAULT, "lu", repo.ADMIN_STATE_DEFAULT).
 		Transition(repo.ADMIN_STATE_DEFAULT, "lp", repo.ADMIN_STATE_DEFAULT).
 		Transition(repo.ADMIN_STATE_DEFAULT, "cu", repo.ADMIN_STATE_CREATE_USER_INPUT_NAME).
 		Transition(repo.ADMIN_STATE_CREATE_USER_INPUT_NAME, "next", repo.ADMIN_STATE_CREATE_USER_SELECT_PROXY).
 		Transition(repo.ADMIN_STATE_CREATE_USER_SELECT_PROXY, "up", repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA).
-		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "s", repo.ADMIN_STATE_DEFAULT)
+		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "s", repo.ADMIN_STATE_DEFAULT).
+		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "cnl", repo.ADMIN_STATE_DEFAULT)
 
+	userRepo := repo.NewUserRepository(grpcClient, logger)
+	proxyRepo := repo.NewProxyRepository(logger)
 	adminRepo := repo.NewAdminRepository(adminStateMashine)
 
 	handlerWrapper := handler.NewMessageHandler(adminRepo, userRepo, proxyRepo, logger)
+	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
 	everithingHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleUpdate)
 	startHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleStart)
 	cancelHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleCancel)
@@ -91,9 +93,6 @@ func main() {
 
 	inlineCallbackFactory := func(fsmCtx *fsm.FSMContext, transitionEvent fsm.Event) inline.OnSelect {
 		return func(ctx context.Context, b *bot.Bot, mes models.MaybeInaccessibleMessage, data []byte) {
-			logger.Info(fmt.Sprintf("triggering event %s", transitionEvent))
-			logger.Info("transition data", "data", string(data))
-
 			fsmCtx.Meta["tgbot"] = b
 			fsmCtx.Meta["tgchat"] = mes.Message.Chat.ID
 			fsmCtx.Meta["tgctx"] = ctx
@@ -131,7 +130,6 @@ func main() {
 	})
 
 	adminStateMashine.OnExit(repo.ADMIN_STATE_CREATE_USER_INPUT_NAME, func(ctx *fsm.FSMContext) error {
-		logger.Info(fmt.Sprintf("%v", ctx.Input))
 		userName := ctx.Input.(string)
 
 		matchString := "^[a-zA-Z0-9_]{3,32}$"
@@ -179,7 +177,6 @@ func main() {
 	})
 
 	adminStateMashine.OnExit(repo.ADMIN_STATE_CREATE_USER_SELECT_PROXY, func(ctx *fsm.FSMContext) error {
-		logger.Info("setting proxy name", "proxy", ctx.Input.(string))
 		ctx.Data["proxy"] = ctx.Input.(string)
 		return nil
 	})
@@ -274,4 +271,17 @@ func main() {
 	}
 
 	b.Start(ctx)
+}
+
+func configureLogger(c AppConfig) *slog.Logger {
+	var logger *slog.Logger
+	switch c.Env {
+	case "dev":
+		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	case "prod":
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	default:
+		panic(fmt.Sprintf("incorrect env type: %s. possible values: dev, prod", c.Env))
+	}
+	return logger
 }

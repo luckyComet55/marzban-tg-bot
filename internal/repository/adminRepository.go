@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 
-	"github.com/luckyComet55/marzban-tg-bot/internal/fsm"
+	"github.com/luckyComet55/marzban-tg-bot/pkg/fsm"
 )
 
 type AdminState int

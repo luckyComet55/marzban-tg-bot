@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/luckyComet55/marzban-tg-bot/internal/fsm"
+
 	repo "github.com/luckyComet55/marzban-tg-bot/internal/repository"
+	"github.com/luckyComet55/marzban-tg-bot/pkg/fsm"
 )
 
 type MessageHandler struct {
@@ -221,6 +222,10 @@ func (mh *MessageHandler) HandleUpdate(ctx context.Context, b *bot.Bot, update *
 			ChatID: chatID,
 		})
 	}
+}
+
+func (mh *MessageHandler) CreateUser(ctx context.Context, b *bot.Bot, update *models.Update) {
+
 }
 
 func (mh *MessageHandler) ListUsers(ctx context.Context, b *bot.Bot, update *models.Update) {
