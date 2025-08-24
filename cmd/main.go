@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/go-telegram/ui/keyboard/inline"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -63,58 +62,86 @@ func main() {
 		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "s", repo.ADMIN_STATE_DEFAULT).
 		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "cnl", repo.ADMIN_STATE_DEFAULT)
 
-	userRepo := repo.NewUserRepository(grpcClient, logger)
-	proxyRepo := repo.NewProxyRepository(logger)
+	userRepo := repo.NewUserRepository(grpcClient, logger.With("component", "userRepo"))
+	proxyRepo := repo.NewProxyRepository(logger.With("component", "proxyRepo"))
 	adminRepo := repo.NewAdminRepository(adminStateMashine)
 
-	handlerWrapper := handler.NewMessageHandler(adminRepo, userRepo, proxyRepo, logger)
-	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger)
+	handlerWrapper := handler.NewMessageHandler(adminRepo, userRepo, proxyRepo, logger.With("component", "handlerWrapper"))
+	whitelistMidleware := middleware.NewWhitelistMiddleware(c.AuthorizedUsers, logger.With("component", "whitelistMidleware"))
 	everithingHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleUpdate)
 	startHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleStart)
 	cancelHandler := middleware.WithWhitelist(whitelistMidleware, handlerWrapper.HandleCancel)
 
 	adminStateMashine.OnTransition(func(from, to fsm.State, event fsm.Event, ctx *fsm.FSMContext) error {
+		logger.Debug("calling on transition")
 		b := ctx.Meta["tgbot"].(*bot.Bot)
-		mes := ctx.Meta["tgmes"].(*models.Update)
+		u := ctx.Meta["tgchat"].(int64)
 		c := ctx.Meta["tgctx"].(context.Context)
 
 		if from == repo.ADMIN_STATE_DEFAULT && event == "lu" {
-			handlerWrapper.ListUsers(c, b, mes)
+			users, err := userRepo.GetUsers()
+			if err != nil {
+				logger.Error(err.Error())
+				if _, err := b.SendMessage(c, &bot.SendMessageParams{
+					Text:   "Unable to serve you right now, try again later",
+					ChatID: u,
+				}); err != nil {
+					logger.Error(err.Error())
+					return err
+				}
+				return err
+			}
+
+			messageTemplate := "\n- username: %s\n  used traffic: %d GiB\n  config url: `%s`"
+			userListMessage := fmt.Sprintf("Total of %d users:", len(users))
+
+			for _, user := range users {
+				userListMessage += fmt.Sprintf(messageTemplate, user.Username, user.UsedTraffic, user.ConfigUrl)
+			}
+
+			if _, err := b.SendMessage(c, &bot.SendMessageParams{
+				Text:   userListMessage,
+				ChatID: u,
+				// ParseMode: models.ParseModeMarkdownV1,
+			}); err != nil {
+				logger.Error(err.Error())
+				return err
+			}
 			return nil
 		}
 
 		if from == repo.ADMIN_STATE_DEFAULT && event == "lp" {
-			handlerWrapper.ListProxies(c, b, mes)
+			proxies, err := proxyRepo.ListProxies()
+			if err != nil {
+				logger.Error(err.Error())
+				if _, err := b.SendMessage(c, &bot.SendMessageParams{
+					Text:   "Unable to serve you right now, try again later",
+					ChatID: u,
+				}); err != nil {
+					logger.Error(err.Error())
+					return err
+				}
+				return err
+			}
+
+			proxyMessage := fmt.Sprintf("Total of %d proxies:\n", len(proxies))
+
+			for _, p := range proxies {
+				proxyMessage += fmt.Sprintf("- %s\n", p.ProxyName)
+			}
+
+			if _, err := b.SendMessage(c, &bot.SendMessageParams{
+				Text:   proxyMessage,
+				ChatID: u,
+			}); err != nil {
+				logger.Error(err.Error())
+				return err
+			}
 			return nil
 		}
 
 		return nil
 	})
-
-	inlineCallbackFactory := func(fsmCtx *fsm.FSMContext, transitionEvent fsm.Event) inline.OnSelect {
-		return func(ctx context.Context, b *bot.Bot, mes models.MaybeInaccessibleMessage, data []byte) {
-			fsmCtx.Meta["tgbot"] = b
-			fsmCtx.Meta["tgchat"] = mes.Message.Chat.ID
-			fsmCtx.Meta["tgctx"] = ctx
-
-			adminID := mes.Message.Chat.ID
-
-			exists, err := adminRepo.CheckAdminExists(adminID)
-			if err != nil {
-				logger.Error(err.Error())
-				return
-			}
-			if !exists {
-				logger.Error(fmt.Sprintf("no admin with ID %d", adminID))
-				return
-			}
-
-			if err := adminRepo.TriggerAdminTransition(adminID, transitionEvent, string(data)); err != nil {
-				logger.Error(err.Error())
-				return
-			}
-		}
-	}
 
 	adminStateMashine.OnEnter(repo.ADMIN_STATE_CREATE_USER_INPUT_NAME, func(ctx *fsm.FSMContext) error {
 		b := ctx.Meta["tgbot"].(*bot.Bot)
@@ -153,24 +180,24 @@ func main() {
 		u := ctx.Meta["tgchat"].(int64)
 		c := ctx.Meta["tgctx"].(context.Context)
 
-		inlineCallback := inlineCallbackFactory(ctx, "up")
-
 		proxies, err := proxyRepo.ListProxies()
 		if err != nil {
 			logger.Error(err.Error())
 			return err
 		}
 
-		km := inline.New(b).Row()
+		kb := &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{make([]models.InlineKeyboardButton, 0)},
+		}
 
 		for _, p := range proxies {
-			km.Button(p.ProxyName, []byte(p.ProxyName), inlineCallback)
+			kb.InlineKeyboard[0] = append(kb.InlineKeyboard[0], models.InlineKeyboardButton{Text: p.ProxyName, CallbackData: "up"})
 		}
 
 		b.SendMessage(c, &bot.SendMessageParams{
 			ChatID:      u,
 			Text:        "Select user proxy configuration from list",
-			ReplyMarkup: km,
+			ReplyMarkup: kb,
 		})
 
 		return nil
@@ -189,15 +216,21 @@ func main() {
 		username := ctx.Data["username"].(string)
 		proxy := ctx.Data["proxy"].(string)
 
-		km := inline.New(b).
-			Row().
-			Button("Submit", []byte{}, inlineCallbackFactory(ctx, "s")).
-			Button("Cancel", []byte{}, inlineCallbackFactory(ctx, "cnl"))
+		kb := &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{
+				{
+					{Text: "Submit", CallbackData: "s"},
+				},
+				{
+					{Text: "Cancel", CallbackData: "cnl"},
+				},
+			},
+		}
 
 		b.SendMessage(c, &bot.SendMessageParams{
 			Text:        fmt.Sprintf("Username: %s\nProxy config: %s", username, proxy),
 			ChatID:      u,
-			ReplyMarkup: km,
+			ReplyMarkup: kb,
 		})
 
 		return nil
@@ -243,17 +276,22 @@ func main() {
 		u := ctx.Meta["tgchat"].(int64)
 		c := ctx.Meta["tgctx"].(context.Context)
 
-		km := inline.New(b).
-			Row().
-			Button("List users", []byte{}, inlineCallbackFactory(ctx, "lu")).
-			Button("List proxies", []byte{}, inlineCallbackFactory(ctx, "lp")).
-			Row().
-			Button("Create user", []byte{}, inlineCallbackFactory(ctx, "cu"))
+		kb := &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{
+				{
+					{Text: "List users", CallbackData: "lu"},
+					{Text: "List proxies", CallbackData: "lp"},
+				},
+				{
+					{Text: "Create user", CallbackData: "cu"},
+				},
+			},
+		}
 
 		b.SendMessage(c, &bot.SendMessageParams{
 			ChatID:      u,
 			Text:        "Select action",
-			ReplyMarkup: km,
+			ReplyMarkup: kb,
 		})
 		return nil
 	})

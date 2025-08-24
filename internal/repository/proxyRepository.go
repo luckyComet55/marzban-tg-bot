@@ -28,5 +28,6 @@ func NewProxyRepository(logger *slog.Logger) ProxyRepository {
 }
 
 func (pr *proxyRepository) ListProxies() ([]ProxyData, error) {
+	pr.logger.Debug("calling list proxies")
 	return pr.proxies, nil
 }

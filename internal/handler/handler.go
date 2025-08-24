@@ -35,66 +35,80 @@ func (mh *MessageHandler) HandleStart(ctx context.Context, b *bot.Bot, update *m
 	exists, err := mh.adminRepository.CheckAdminExists(adminID)
 	if err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if !exists {
 		if err := mh.adminRepository.AddAdmin(adminID); err != nil {
 			mh.logger.Error(err.Error())
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 				Text:   "Unable to serve you, try again later",
 				ChatID: chatID,
-			})
+			}); err != nil {
+				mh.logger.Error(err.Error())
+			}
 			return
 		}
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgbot", b); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgmes", update); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgchat", chatID); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgctx", ctx); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminState(adminID, repo.ADMIN_STATE_DEFAULT); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 }
@@ -150,17 +164,21 @@ func (mh *MessageHandler) HandleUpdate(ctx context.Context, b *bot.Bot, update *
 	exists, err := mh.adminRepository.CheckAdminExists(adminID)
 	if err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you right now, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 	if !exists {
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "To start using bot enter /start",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
@@ -179,99 +197,57 @@ func (mh *MessageHandler) HandleUpdate(ctx context.Context, b *bot.Bot, update *
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgbot", b); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgmes", update); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgchat", chatID); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
 	if err := mh.adminRepository.SetAdminMeta(adminID, "tgctx", ctx); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 		return
 	}
 
-	mh.logger.Info("user input is", "input", adminInput)
+	mh.logger.Debug("user input is", "input", adminInput)
 
 	if err := mh.adminRepository.TriggerAdminTransition(adminID, fsm.Event(transitionName), adminInput); err != nil {
 		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			Text:   err.Error(),
+		if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			Text:   "Unable to serve you, try again later",
 			ChatID: chatID,
-		})
+		}); err != nil {
+			mh.logger.Error(err.Error())
+		}
 	}
-}
-
-func (mh *MessageHandler) CreateUser(ctx context.Context, b *bot.Bot, update *models.Update) {
-
-}
-
-func (mh *MessageHandler) ListUsers(ctx context.Context, b *bot.Bot, update *models.Update) {
-	users, err := mh.userRepository.GetUsers()
-	if err != nil {
-		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			Text:   "Unable to serve you right now, try again later",
-			ChatID: update.Message.Chat.ID,
-		})
-		return
-	}
-
-	messageTemplate := "\n- username: %s\n  used traffic: %d GiB\n  config url: `%s`"
-	userListMessage := fmt.Sprintf("Total of %d users:", len(users))
-
-	for _, user := range users {
-		userListMessage += fmt.Sprintf(messageTemplate, user.Username, user.UsedTraffic, user.ConfigUrl)
-	}
-
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		Text:      userListMessage,
-		ChatID:    update.Message.Chat.ID,
-		ParseMode: models.ParseModeMarkdownV1,
-	})
-}
-
-func (mh *MessageHandler) ListProxies(ctx context.Context, b *bot.Bot, update *models.Update) {
-	proxies, err := mh.proxyRepository.ListProxies()
-	if err != nil {
-		mh.logger.Error(err.Error())
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			Text:   "Unable to serve you right now, try again later",
-			ChatID: update.Message.Chat.ID,
-		})
-		return
-	}
-
-	proxyMessage := fmt.Sprintf("Total of %d proxies:\n", len(proxies))
-
-	for _, p := range proxies {
-		proxyMessage += fmt.Sprintf("- %s\n", p.ProxyName)
-	}
-
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		Text:   proxyMessage,
-		ChatID: update.Message.Chat.ID,
-	})
 }
