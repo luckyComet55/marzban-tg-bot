@@ -63,7 +63,7 @@ func main() {
 		Transition(repo.ADMIN_STATE_CREATE_USER_SUBMIT_DATA, "cnl", repo.ADMIN_STATE_DEFAULT)
 
 	userRepo := repo.NewUserRepository(grpcClient, logger.With("component", "userRepo"))
-	proxyRepo := repo.NewProxyRepository(logger.With("component", "proxyRepo"))
+	proxyRepo := repo.NewProxyRepository(grpcClient, logger.With("component", "proxyRepo"))
 	adminRepo := repo.NewAdminRepository(adminStateMashine)
 
 	handlerWrapper := handler.NewMessageHandler(adminRepo, userRepo, proxyRepo, logger.With("component", "handlerWrapper"))
@@ -92,17 +92,17 @@ func main() {
 				return err
 			}
 
-			messageTemplate := "\n- username: %s\n  used traffic: %d GiB\n  config url: `%s`"
-			userListMessage := fmt.Sprintf("Total of %d users:", len(users))
-
-			for _, user := range users {
-				userListMessage += fmt.Sprintf(messageTemplate, user.Username, user.UsedTraffic, user.ConfigUrl)
+			kb := &models.InlineKeyboardMarkup{
+				InlineKeyboard: [][]models.InlineKeyboardButton{make([]models.InlineKeyboardButton, 0)},
+			}
+			for _, u := range users {
+				kb.InlineKeyboard[0] = append(kb.InlineKeyboard[0], models.InlineKeyboardButton{Text: u.Username, CallbackData: "next:"})
 			}
 
 			if _, err := b.SendMessage(c, &bot.SendMessageParams{
-				Text:   userListMessage,
-				ChatID: u,
-				// ParseMode: models.ParseModeMarkdownV1,
+				Text:        "Choose user to get all info",
+				ChatID:      u,
+				ReplyMarkup: kb,
 			}); err != nil {
 				logger.Error(err.Error())
 				return err
@@ -191,7 +191,7 @@ func main() {
 		}
 
 		for _, p := range proxies {
-			kb.InlineKeyboard[0] = append(kb.InlineKeyboard[0], models.InlineKeyboardButton{Text: p.ProxyName, CallbackData: "up"})
+			kb.InlineKeyboard[0] = append(kb.InlineKeyboard[0], models.InlineKeyboardButton{Text: p.ProxyName, CallbackData: fmt.Sprintf("up:%s", p.ProxyName)})
 		}
 
 		b.SendMessage(c, &bot.SendMessageParams{
@@ -219,10 +219,10 @@ func main() {
 		kb := &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{
 				{
-					{Text: "Submit", CallbackData: "s"},
+					{Text: "Submit", CallbackData: "s:"},
 				},
 				{
-					{Text: "Cancel", CallbackData: "cnl"},
+					{Text: "Cancel", CallbackData: "cnl:"},
 				},
 			},
 		}
@@ -279,11 +279,11 @@ func main() {
 		kb := &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{
 				{
-					{Text: "List users", CallbackData: "lu"},
-					{Text: "List proxies", CallbackData: "lp"},
+					{Text: "List users", CallbackData: "lu:"},
+					{Text: "List proxies", CallbackData: "lp:"},
 				},
 				{
-					{Text: "Create user", CallbackData: "cu"},
+					{Text: "Create user", CallbackData: "cu:"},
 				},
 			},
 		}

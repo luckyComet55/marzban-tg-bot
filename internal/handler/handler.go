@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -187,9 +188,10 @@ func (mh *MessageHandler) HandleUpdate(ctx context.Context, b *bot.Bot, update *
 	if update.Message != nil {
 		adminInput = update.Message.Text
 	} else if update.CallbackQuery != nil {
-		adminInput = update.CallbackQuery.Message.Message.Text
-		if update.CallbackQuery.Data != "" {
-			transitionName = update.CallbackQuery.Data
+		queryData := strings.Split(update.CallbackQuery.Data, ":")
+		adminInput = queryData[1]
+		if queryData[0] != "" {
+			transitionName = queryData[0]
 		}
 	} else {
 		adminInput = ""
